@@ -24,10 +24,15 @@
 			// // simpleFDA(resolve[0], resolve[1])
 			// createForceDirectedDiagram(resolve[0], resolve[1])
 			// })
-			Promise.all([PromiseWrapper("Graph_1_5.txt")])
+
+			Promise.all([PromiseWrapper("/graphs/Graph_1_5.txt")])
 			.then(resolve => {
 			sparseFDA(resolve[0])
 			})
+
+			// d3.csv("/graphs/Graph_1_5.txt", function(error, data) {
+			// 	parseData(data)
+			// })
 		}
 
 		function createAdjacencyMatrix(nodes, edges) {
@@ -408,7 +413,60 @@
 			})
 		}
 
+		function parseData() { 
+			var text = document.getElementById("dataset").value;
+			var lines = text.split("\n");
+			var edges = []
+			var nodes = {} 
+			
+			// skip header, read line-by-line
+			for(var i=1; i<lines.length-1; i++)
+			{
+				var l = lines[i]
+				var arr = l.split("   ")
+				var v1 = arr[0] // vertex 1
+				var v2 = arr[1] // vertex 2
+				
+				// if the node is not assigned coordinates, generate them and add to nodes dict
+				if (!(v1 in nodes)) { 
+					var x1 = randomNumber(0, lines.length)
+					var y1 = randomNumber(0, lines.length)
+					nodes[v1] = {x:x1, y:y1}
+				} else { // if it exists, just store the line to be added to edges[]
+					var x1 = nodes[v1].x
+					var y1 = nodes[v1].y
+				}
+				if (!(v2 in nodes)) {
+					var x2 = randomNumber(0, lines.length)
+					var y2 = randomNumber(0, lines.length)
+					nodes[v2] = {x:x2, y:y2}
+				} else {
+					var x2 = nodes[v2].x
+					var y2 = nodes[v2].y
+				}
+
+				// object representing a line, source:(x,y) ---> target:(x,y)
+				edges.push({
+					source: {
+						x:parseInt(x1),
+						y:parseInt(y1), 
+						index:parseInt(v1) // node index
+					},
+					target: {
+						x:parseInt(x2),
+						y:parseInt(y2),
+						index:parseInt(v2)
+					},
+					index:i-1 // line segment index (first is line 0, second is line 1,...)	
+				});
+			}
+			array_of_edges = [...edges]; // store lines in a global variable
+			return edges;
+		}
+
 		function sparseFDA(edges) {
+
+			console.log(edges)
 
 			// global variable to store nodes
 
@@ -438,10 +496,57 @@
 			// v2, x, y
 			// verts in svg, ones not allowed to move can keep at their coordinate
 
+			//TODO
+			// read and load edge data from .txt
+			// put edges in hashmap
+			// make nodes
+				// index 0->...
+				// node's current x
+				// current y
+				// vx - current x velocity (0?)
+				// vy - current y velocity	(0?)
+			// store in node hashmap, draw
+			// read next G.txt
+			// for each edge/node, check if node exists in map already
+			// only update node forces if node not in node hashmap
+
+			edgeData = edges.map(d => Object.create(d))
+
+			console.log(edges)
+			console.log(edgeData)
+
+			var index = 0
+			const map1 = new Map();
+			var edgeHash = {};
+			edges.forEach(edge => {
+				console.log(edge)
+				if (!map1.has(edge)) {
+					map1.set(index, edge)
+				}
+				var id = index;
+				index++;
+				edgeHash[id] = edge; 		// hash allows us to test if source-target pair has link
+			})
+			console.log(map1)
+			console.log(edgeHash)
+
+			var matrix = [];
+			nodes.forEach((source, a) => {
+				nodes.forEach((target, b) => { 
+				var grid =
+				{id: source.id + "-" + target.id,
+				x: b, y: a, weight: 0}; 
+				if (edgeHash[grid.id]) {
+				grid.weight = edgeHash[grid.id].weight; 
+				}
+				matrix.push(grid);
+				})
+			})
+
 			var roleScale = d3.scaleOrdinal()
 			.domain(["contractor", "employee", "manager"])
 			.range(["#75739F", "#41A368", "#FE9922"])
-			var nodeHash = nodes.reduce((hash, node) =>
+			var nodeHash = edges.reduce((hash, node) =>
 				{hash[node.id] = node;
 				return hash;
 			}, {})
@@ -452,10 +557,10 @@
 			})
 
 			var linkForce = d3.forceLink()
-			simulation = d3.forceSimulation()
-			.force("charge", d3.forceManyBody().strength(-40))  // .force applies to all verts, want to apply to new only
-			.force("center", d3.forceCenter().x(300).y(300))
-			.force("link", linkForce)
+			simulation = d3.forceSimulation()					// .force applies to all verts, want to apply to new only
+			.force("charge", d3.forceManyBody().strength(-40))  // pushes nodes away from eachother
+			.force("center", d3.forceCenter().x(300).y(300))	// pulls nodes towards center
+			.force("link", linkForce)							// pulls CONNECTED nodes towards eachother
 			.nodes(nodes)
 			.on("tick", forceTick) // make updateNetwork function instead of forceTick
 			simulation.force("link").links(edges)
